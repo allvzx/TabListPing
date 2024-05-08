@@ -26,7 +26,7 @@ import org.bukkit.Bukkit;
 
 /**
  * An utility class that simplifies reflection in Bukkit plugins.
- * 
+ *
  * @author Kristian
  */
 public final class Reflection {
@@ -36,7 +36,7 @@ public final class Reflection {
     public interface ConstructorInvoker {
         /**
          * Invoke a constructor for a specific class.
-         * 
+         *
          * @param arguments - the arguments to pass to the constructor.
          * @return The constructed object.
          */
@@ -49,8 +49,8 @@ public final class Reflection {
     public interface MethodInvoker {
         /**
          * Invoke a method on a specific target object.
-         * 
-         * @param target - the target object, or NULL for a static method.
+         *
+         * @param target    - the target object, or NULL for a static method.
          * @param arguments - the arguments to pass to the method.
          * @return The return value, or NULL if is void.
          */
@@ -59,13 +59,13 @@ public final class Reflection {
 
     /**
      * An interface for retrieving the field content.
-     * 
+     *
      * @param <T> - field type.
      */
     public interface FieldAccessor<T> {
         /**
          * Retrieve the content of a field.
-         * 
+         *
          * @param target - the target object, or NULL for a static field.
          * @return The value of the field.
          */
@@ -73,15 +73,15 @@ public final class Reflection {
 
         /**
          * Set the content of a field.
-         * 
+         *
          * @param target - the target object, or NULL for a static field.
-         * @param value - the new value of the field.
+         * @param value  - the new value of the field.
          */
         public void set(Object target, Object value);
 
         /**
          * Determine if the given object has this field.
-         * 
+         *
          * @param target - the object to test.
          * @return TRUE if it does, FALSE otherwise.
          */
@@ -102,9 +102,9 @@ public final class Reflection {
 
     /**
      * Retrieve a field accessor for a specific field type and name.
-     * 
-     * @param target - the target type.
-     * @param name - the name of the field, or NULL to ignore.
+     *
+     * @param target    - the target type.
+     * @param name      - the name of the field, or NULL to ignore.
      * @param fieldType - a compatible field type.
      * @return The field accessor.
      */
@@ -114,9 +114,9 @@ public final class Reflection {
 
     /**
      * Retrieve a field accessor for a specific field type and name.
-     * 
+     *
      * @param className - lookup name of the class, see {@link #getClass(String)}.
-     * @param name - the name of the field, or NULL to ignore.
+     * @param name      - the name of the field, or NULL to ignore.
      * @param fieldType - a compatible field type.
      * @return The field accessor.
      */
@@ -126,10 +126,10 @@ public final class Reflection {
 
     /**
      * Retrieve a field accessor for a specific field type and name.
-     * 
-     * @param target - the target type.
+     *
+     * @param target    - the target type.
      * @param fieldType - a compatible field type.
-     * @param index - the number of compatible fields to skip.
+     * @param index     - the number of compatible fields to skip.
      * @return The field accessor.
      */
     public static <T> FieldAccessor<T> getField(Class<?> target, Class<T> fieldType, int index) {
@@ -138,10 +138,10 @@ public final class Reflection {
 
     /**
      * Retrieve a field accessor for a specific field type and name.
-     * 
+     *
      * @param className - lookup name of the class, see {@link #getClass(String)}.
      * @param fieldType - a compatible field type.
-     * @param index - the number of compatible fields to skip.
+     * @param index     - the number of compatible fields to skip.
      * @return The field accessor.
      */
     public static <T> FieldAccessor<T> getField(String className, Class<T> fieldType, int index) {
@@ -196,11 +196,10 @@ public final class Reflection {
      * Retrieves a field with a given type and parameters. This is most useful
      * when dealing with Collections.
      *
-     * @param target the target class.
+     * @param target    the target class.
      * @param fieldType Type of the field
-     * @param params Variable length array of type parameters
+     * @param params    Variable length array of type parameters
      * @return The field
-     *
      * @throws IllegalArgumentException If the field cannot be found
      */
     public static Field getParameterizedField(Class<?> target, Class<?> fieldType, Class<?>... params) {
@@ -219,10 +218,10 @@ public final class Reflection {
 
     /**
      * Search for the first publicly and privately defined method of the given name and parameter count.
-     * 
-     * @param className - lookup name of the class, see {@link #getClass(String)}.
+     *
+     * @param className  - lookup name of the class, see {@link #getClass(String)}.
      * @param methodName - the method name, or NULL to skip.
-     * @param params - the expected parameters.
+     * @param params     - the expected parameters.
      * @return An object that invokes this specific method.
      * @throws IllegalStateException If we cannot find this method.
      */
@@ -232,10 +231,10 @@ public final class Reflection {
 
     /**
      * Search for the first publicly and privately defined method of the given name and parameter count.
-     * 
-     * @param clazz - a class to start with.
+     *
+     * @param clazz      - a class to start with.
      * @param methodName - the method name, or NULL to skip.
-     * @param params - the expected parameters.
+     * @param params     - the expected parameters.
      * @return An object that invokes this specific method.
      * @throws IllegalStateException If we cannot find this method.
      */
@@ -245,11 +244,11 @@ public final class Reflection {
 
     /**
      * Search for the first publicly and privately defined method of the given name and parameter count.
-     * 
-     * @param clazz - a class to start with.
+     *
+     * @param clazz      - a class to start with.
      * @param methodName - the method name, or NULL to skip.
      * @param returnType - the expected return type, or NULL to ignore.
-     * @param params - the expected parameters.
+     * @param params     - the expected parameters.
      * @return An object that invokes this specific method.
      * @throws IllegalStateException If we cannot find this method.
      */
@@ -284,9 +283,9 @@ public final class Reflection {
 
     /**
      * Search for the first publically and privately defined constructor of the given name and parameter count.
-     * 
+     *
      * @param className - lookup name of the class, see {@link #getClass(String)}.
-     * @param params - the expected parameters.
+     * @param params    - the expected parameters.
      * @return An object that invokes this constructor.
      * @throws IllegalStateException If we cannot find this method.
      */
@@ -296,8 +295,8 @@ public final class Reflection {
 
     /**
      * Search for the first publically and privately defined constructor of the given name and parameter count.
-     * 
-     * @param clazz - a class to start with.
+     *
+     * @param clazz  - a class to start with.
      * @param params - the expected parameters.
      * @return An object that invokes this constructor.
      * @throws IllegalStateException If we cannot find this method.
@@ -330,13 +329,13 @@ public final class Reflection {
      * <p>
      * This is useful when looking up fields by a NMS or OBC type.
      * <p>
-     * 
-     * @see {@link #getClass()} for more information.
+     *
      * @param lookupName - the class name with variables.
      * @return The class.
+     * @see {@link #getClass()} for more information.
      */
     public static Class<Object> getUntypedClass(String lookupName) {
-        @SuppressWarnings({ "rawtypes", "unchecked" })
+        @SuppressWarnings({"rawtypes", "unchecked"})
         Class<Object> clazz = (Class) getClass(lookupName);
         return clazz;
     }
@@ -346,14 +345,14 @@ public final class Reflection {
      * <p>
      * This is useful when looking up fields by a NMS or OBC type.
      * <p>
-     * 
-     * @see {@link #getClass()} for more information.
+     *
      * @param lookupName - the class name with variables.
-     * @param aliases - alternative names for this class.
+     * @param aliases    - alternative names for this class.
      * @return The class.
+     * @see {@link #getClass()} for more information.
      */
     public static Class<Object> getUntypedClass(String lookupName, String... aliases) {
-        @SuppressWarnings({ "rawtypes", "unchecked" })
+        @SuppressWarnings({"rawtypes", "unchecked"})
         Class<Object> clazz = (Class) getClass(lookupName, aliases);
         return clazz;
     }
@@ -381,7 +380,7 @@ public final class Reflection {
      * <td>The current Minecraft package VERSION, if any.</td>
      * </tr>
      * </table>
-     * 
+     *
      * @param lookupName - the class name with variables.
      * @return The looked up class.
      * @throws IllegalArgumentException If a variable or class could not be found.
@@ -413,9 +412,9 @@ public final class Reflection {
      * <td>The current Minecraft package VERSION, if any.</td>
      * </tr>
      * </table>
-     * 
+     *
      * @param lookupName - the class name with variables.
-     * @param aliases - alternative names for this class.
+     * @param aliases    - alternative names for this class.
      * @return Class object.
      * @throws RuntimeException If we are unable to find any of the given classes.
      */
@@ -447,7 +446,7 @@ public final class Reflection {
 
     /**
      * Retrieve a class in the net.minecraft.server.VERSION.* package.
-     * 
+     *
      * @param name - the name of the class, excluding the package.
      * @throws IllegalArgumentException If the class doesn't exist.
      */
@@ -457,7 +456,7 @@ public final class Reflection {
 
     /**
      * Retrieve a class in the org.bukkit.craftbukkit.VERSION.* package.
-     * 
+     *
      * @param name - the name of the class, excluding the package.
      * @throws IllegalArgumentException If the class doesn't exist.
      */
@@ -467,7 +466,7 @@ public final class Reflection {
 
     /**
      * Retrieve a class by its canonical name.
-     * 
+     *
      * @param canonicalName - the canonical name.
      * @return The class.
      */
@@ -481,7 +480,7 @@ public final class Reflection {
 
     /**
      * Expand variables such as "{nms}" and "{obc}" to their corresponding packages.
-     * 
+     *
      * @param name - the full name of the class.
      * @return The expanded string.
      */

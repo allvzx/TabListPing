@@ -11,7 +11,7 @@
 // You should have received a copy of the GNU General Public License along with this program; if not, write to the Free
 // Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
- package com.comphenix.tinyprotocol;
+package com.comphenix.tinyprotocol;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelDuplexHandler;
@@ -38,6 +38,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerLoginEvent;
 import org.bukkit.event.server.PluginDisableEvent;
 import org.bukkit.plugin.Plugin;
@@ -52,7 +53,7 @@ import com.mojang.authlib.GameProfile;
  * Represents a very tiny alternative to ProtocolLib.
  * <p>
  * It now supports intercepting packets during login and status ping (such as OUT_SERVER_PING)!
- * 
+ *
  * @author Kristian
  */
 
@@ -108,7 +109,7 @@ public abstract class TinyProtocol {
      * Construct a new instance of TinyProtocol, and start intercepting packets for all connected clients and future clients.
      * <p>
      * You can construct multiple instances per plugin.
-     * 
+     *
      * @param plugin - the plugin.
      */
     public TinyProtocol(Plugin plugin) {
@@ -170,7 +171,7 @@ public abstract class TinyProtocol {
         };
 
         serverChannelHandler = new ChannelInboundHandlerAdapter() {
-    
+
             @Override
             public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
                 Channel channel = (Channel) msg;
@@ -194,7 +195,29 @@ public abstract class TinyProtocol {
                 if (closed)
                     return;
 
+                Channel channel = getChannel(e.getPlayer()); // nullable. sometimes connection is not present yet in the player object
+
+                if (channel == null) {
+                    plugin.getLogger().warning("[TinyProtocol] Failed to inject player " + e.getPlayer().getName() + " on login.");
+                    return;
+                }
+
+                // Don't inject players that have been explicitly uninjected
+                if (!uninjectedChannels.contains(channel)) {
+                    injectPlayer(e.getPlayer());
+                }
+            }
+
+            @EventHandler(priority = EventPriority.LOWEST)
+            public final void onPlayerJoin(PlayerJoinEvent e) {
+                if (closed)
+                    return;
                 Channel channel = getChannel(e.getPlayer());
+
+                if (channel == null) {
+                    plugin.getLogger().warning("[TinyProtocol] Failed to inject player " + e.getPlayer().getName() + " on join.");
+                    return;
+                }
 
                 // Don't inject players that have been explicitly uninjected
                 if (!uninjectedChannels.contains(channel)) {
@@ -289,13 +312,13 @@ public abstract class TinyProtocol {
      * Invoked when the server is starting to send a packet to a player.
      * <p>
      * Note that this is not executed on the main thread.
-     * 
+     *
      * @param receiver - the receiving player, NULL for early login/status packets.
-     * @param channel - the channel that received the packet. Never NULL.
-     * @param packet - the packet being sent.
+     * @param channel  - the channel that received the packet. Never NULL.
+     * @param packet   - the packet being sent.
      * @return The packet to send instead, or NULL to cancel the transmission.
      */
-    public Object onPacketOutAsync(Player receiver, Channel channel, Object packet) {
+    public Object onPacketOutAsync(Player receiver, Channel channel, Object packet) throws Exception {
         return packet;
     }
 
@@ -303,10 +326,10 @@ public abstract class TinyProtocol {
      * Invoked when the server has received a packet from a given player.
      * <p>
      * Use {@link Channel#remoteAddress()} to get the remote address of the client.
-     * 
-     * @param sender - the player that sent the packet, NULL for early login/status packets.
+     *
+     * @param sender  - the player that sent the packet, NULL for early login/status packets.
      * @param channel - channel that received the packet. Never NULL.
-     * @param packet - the packet being received.
+     * @param packet  - the packet being received.
      * @return The packet to recieve instead, or NULL to cancel.
      */
     public Object onPacketInAsync(Player sender, Channel channel, Object packet) {
@@ -317,7 +340,7 @@ public abstract class TinyProtocol {
      * Send a packet to a particular player.
      * <p>
      * Note that {@link #onPacketOutAsync(Player, Channel, Object)} will be invoked with this packet.
-     * 
+     *
      * @param player - the destination player.
      * @param packet - the packet to send.
      */
@@ -329,19 +352,19 @@ public abstract class TinyProtocol {
      * Send a packet to a particular client.
      * <p>
      * Note that {@link #onPacketOutAsync(Player, Channel, Object)} will be invoked with this packet.
-     * 
+     *
      * @param channel - client identified by a channel.
-     * @param packet - the packet to send.
+     * @param packet  - the packet to send.
      */
     public void sendPacket(Channel channel, Object packet) {
-        channel.pipeline().writeAndFlush(packet);
+        if (channel != null) channel.pipeline().writeAndFlush(packet);
     }
 
     /**
      * Pretend that a given packet has been received from a player.
      * <p>
      * Note that {@link #onPacketInAsync(Player, Channel, Object)} will be invoked with this packet.
-     * 
+     *
      * @param player - the player that sent the packet.
      * @param packet - the packet that will be received by the server.
      */
@@ -353,19 +376,19 @@ public abstract class TinyProtocol {
      * Pretend that a given packet has been received from a given client.
      * <p>
      * Note that {@link #onPacketInAsync(Player, Channel, Object)} will be invoked with this packet.
-     * 
+     *
      * @param channel - client identified by a channel.
-     * @param packet - the packet that will be received by the server.
+     * @param packet  - the packet that will be received by the server.
      */
     public void receivePacket(Channel channel, Object packet) {
-        channel.pipeline().context("encoder").fireChannelRead(packet);
+        if (channel != null) channel.pipeline().context("encoder").fireChannelRead(packet);
     }
 
     /**
      * Retrieve the name of the channel injector, default implementation is "tiny-" + plugin name + "-" + a unique ID.
      * <p>
      * Note that this method will only be invoked once. It is no longer necessary to override this to support multiple instances.
-     * 
+     *
      * @return A unique channel handler name.
      */
     protected String getHandlerName() {
@@ -376,16 +399,20 @@ public abstract class TinyProtocol {
      * Add a custom channel handler to the given player's channel pipeline, allowing us to intercept sent and received packets.
      * <p>
      * This will automatically be called when a player has logged in.
-     * 
+     *
      * @param player - the player to inject.
      */
     public void injectPlayer(Player player) {
-        injectChannelInternal(getChannel(player)).player = player;
+        PacketInterceptor packetInterceptor = injectChannelInternal(getChannel(player));
+        if (packetInterceptor != null) {
+            packetInterceptor.player = player;
+            plugin.getLogger().warning("[TinyProtocol] Injected player " + player.getName() + ".");
+        }
     }
 
     /**
      * Add a custom channel handler to the given channel.
-     * 
+     *
      * @param channel - the channel to inject.
      * @return The intercepted channel, or NULL if it has already been injected.
      */
@@ -395,11 +422,12 @@ public abstract class TinyProtocol {
 
     /**
      * Add a custom channel handler to the given channel.
-     * 
+     *
      * @param channel - the channel to inject.
      * @return The packet interceptor.
      */
     private PacketInterceptor injectChannelInternal(Channel channel) {
+        if (channel == null) return null;
         try {
             PacketInterceptor interceptor = (PacketInterceptor) channel.pipeline().get(handlerName);
 
@@ -419,7 +447,7 @@ public abstract class TinyProtocol {
 
     /**
      * Retrieve the Netty channel associated with a player. This is cached.
-     * 
+     *
      * @param player - the player.
      * @return The Netty channel.
      */
@@ -429,6 +457,8 @@ public abstract class TinyProtocol {
         // Lookup channel again
         if (channel == null) {
             Object connection = getConnection.get(getPlayerHandle.invoke(player));
+            if (connection == null) return null;
+
             Object manager = getManager.get(connection);
 
             channelLookup.put(player.getName(), channel = getChannel.get(manager));
@@ -439,7 +469,7 @@ public abstract class TinyProtocol {
 
     /**
      * Uninject a specific player.
-     * 
+     *
      * @param player - the injected player.
      */
     public void uninjectPlayer(Player player) {
@@ -450,7 +480,7 @@ public abstract class TinyProtocol {
      * Uninject a specific channel.
      * <p>
      * This will also disable the automatic channel injection that occurs when a player has properly logged in.
-     * 
+     *
      * @param channel - the injected channel.
      */
     public void uninjectChannel(final Channel channel) {
@@ -472,7 +502,7 @@ public abstract class TinyProtocol {
 
     /**
      * Determine if the given player has been injected by TinyProtocol.
-     * 
+     *
      * @param player - the player.
      * @return TRUE if it is, FALSE otherwise.
      */
@@ -482,7 +512,7 @@ public abstract class TinyProtocol {
 
     /**
      * Determine if the given channel has been injected by TinyProtocol.
-     * 
+     *
      * @param channel - the channel.
      * @return TRUE if it is, FALSE otherwise.
      */
@@ -563,7 +593,7 @@ public abstract class TinyProtocol {
 
     /**
      * Channel handler that is inserted into the player's channel pipeline, allowing us to intercept sent and received packets.
-     * 
+     *
      * @author Kristian
      */
     private final class PacketInterceptor extends ChannelDuplexHandler {
