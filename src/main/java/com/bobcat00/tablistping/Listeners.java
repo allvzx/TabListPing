@@ -16,7 +16,11 @@
 
 package com.bobcat00.tablistping;
 
+import com.comphenix.tinyprotocol.Reflection;
+import com.earth2me.essentials.User;
+import com.mojang.authlib.GameProfile;
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
 import org.bukkit.event.EventPriority;
@@ -30,16 +34,12 @@ import com.earth2me.essentials.IEssentials;
 import net.ess3.api.IUser;
 import net.ess3.api.events.AfkStatusChangeEvent;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.lang.reflect.Method;
+import java.util.*;
 
 public final class Listeners implements Listener {
     private TabListPing plugin;
-    public IEssentials ess;
+    private IEssentials ess;
 
     // Map containing Keep Alive time and ping time
     public Map<UUID, List<Long>> keepAliveTime = Collections.synchronizedMap(new HashMap<UUID, List<Long>>());
@@ -114,6 +114,99 @@ public final class Listeners implements Listener {
             timeData.set(1, pingTime);
         }
         keepAliveTime.put(uuid, timeData); // possibly blocking
+    }
+
+    // nms classes
+    private final Class<Enum> playerInfoActionEnumClass = (Class<Enum>) Reflection.getClass("net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket$a");
+    private final Class<Enum> gamemodeEnumClass = (Class<Enum>) Reflection.getClass("net.minecraft.world.level.EnumGamemode");
+    private final Class<Object> chatBaseComponentClass = Reflection.getUntypedClass("net.minecraft.network.chat.IChatBaseComponent");
+    private final Class<Object> remoteChatSessionDataClass = Reflection.getUntypedClass("net.minecraft.network.chat.RemoteChatSession$a");
+    private final Class<Object> playerInfoClass = Reflection.getUntypedClass("net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket$b");
+    private final Reflection.ConstructorInvoker playerInfoConstructor = Reflection.getConstructor(
+            "net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket$b",
+            UUID.class,
+            GameProfile.class,
+            boolean.class,
+            int.class,
+            gamemodeEnumClass,
+            chatBaseComponentClass,
+            remoteChatSessionDataClass);
+
+    // fields
+    private final Reflection.FieldAccessor<EnumSet> playerInfoActionsField = Reflection.getField(plugin.OUT_PLAYER_INFO_UPDATE_PACKET, EnumSet.class, 0);
+    private final Reflection.FieldAccessor<List> playerInfoListField = Reflection.getField(plugin.OUT_PLAYER_INFO_UPDATE_PACKET, List.class, 0);
+    private final Reflection.FieldAccessor<UUID> playerInfoUUIDField = Reflection.getField(playerInfoClass, UUID.class, 0);
+    private final Reflection.FieldAccessor<GameProfile> playerInfoGameProfileField = Reflection.getField(playerInfoClass, GameProfile.class, 0);
+    private final Reflection.FieldAccessor<Object> playerInfoDisplayNameField = Reflection.getField(playerInfoClass, chatBaseComponentClass, 0);
+
+    // methods
+    private final Reflection.MethodInvoker componentEmptyMethod = Reflection.getMethod(chatBaseComponentClass, "i");
+    private final Reflection.MethodInvoker mutableComponentAppendStringMethod = Reflection.getMethod("net.minecraft.network.chat.IChatMutableComponent", "f", String.class);
+    private final Reflection.MethodInvoker mutableComponentAppendComponentMethod = Reflection.getMethod("net.minecraft.network.chat.IChatMutableComponent", "b", chatBaseComponentClass);
+
+    public Object onPlayerInfoUpdate(Object packet) throws Exception {
+        EnumSet<?> actions = playerInfoActionsField.get(packet);
+        EnumSet<?> newActions = EnumSet.copyOf(actions);
+
+        if (actions.contains(Enum.valueOf(playerInfoActionEnumClass, "UPDATE_LATENCY")) && !actions.contains(Enum.valueOf(playerInfoActionEnumClass, "UPDATE_DISPLAY_NAME"))) {
+            Method enumAdd = newActions.getClass().getMethod("add", Enum.class);
+            enumAdd.setAccessible(true);
+            enumAdd.invoke(newActions, Enum.valueOf(playerInfoActionEnumClass, "UPDATE_DISPLAY_NAME"));
+            playerInfoActionsField.set(packet, newActions);
+        }
+
+        if (newActions.contains(Enum.valueOf(playerInfoActionEnumClass, "UPDATE_DISPLAY_NAME"))) {
+            List<?> playersInfo = playerInfoListField.get(packet);
+            ArrayList<Object> newPlayersInfo = new ArrayList<>();
+            for (Object playerInfo : playersInfo) {
+                UUID uuid = playerInfoUUIDField.get(playerInfo);
+                GameProfile profile = playerInfoGameProfileField.get(playerInfo);
+                Object displayName = playerInfoDisplayNameField.get(playerInfo);
+
+                if (displayName == null) {
+                    displayName = componentEmptyMethod.invoke(null);
+                    mutableComponentAppendStringMethod.invoke(displayName, profile.getName());
+                }
+
+                List<Long> timeData = keepAliveTime.get(uuid);
+                Long ping = 0L;
+                if (timeData != null) {
+                    ping = timeData.get(1);
+                }
+
+                boolean afk = false;
+                if (ess != null) {
+                    User user = ess.getUser(uuid);
+                    afk = user != null && user.isAfk();
+                }
+
+                String pingPrefix = ChatColor.translateAlternateColorCodes('&',
+                        "&7[&a%ping%ms&7] "
+                                .replace("%ping%", ping.toString()));
+                String afkSuffix = ChatColor.translateAlternateColorCodes('&',
+                        " &eAFK");
+
+                Object components = componentEmptyMethod.invoke(null);
+                mutableComponentAppendStringMethod.invoke(components, pingPrefix);
+                mutableComponentAppendComponentMethod.invoke(components, displayName);
+                if (afk)
+                    mutableComponentAppendStringMethod.invoke(components, afkSuffix);
+
+                Object newPlayerInfo = playerInfoConstructor.invoke(
+                        uuid, // uuid
+                        profile, // game profile
+                        Reflection.getField(playerInfoClass, boolean.class, 0).get(playerInfo), // listed
+                        Reflection.getField(playerInfoClass, int.class, 0).get(playerInfo), // latency
+                        Reflection.getField(playerInfoClass, gamemodeEnumClass, 0).get(playerInfo), // game mode
+                        components, // display name
+                        Reflection.getField(playerInfoClass, remoteChatSessionDataClass, 0).get(playerInfo) // chat session
+                );
+
+                newPlayersInfo.add(newPlayerInfo);
+            }
+            playerInfoListField.set(packet, newPlayersInfo.stream().toList());
+        }
+        return packet;
     }
 
     // AFK change
